@@ -2492,31 +2492,14 @@ fn goto_last_diag(cx: &mut Context) {
 }
 
 fn goto_next_diag(cx: &mut Context) {
-    let editor = &mut cx.editor;
-    let (view, doc) = current!(editor);
-
-    let cursor_pos = doc
-        .selection(view.id)
-        .primary()
-        .cursor(doc.text().slice(..));
-
-    let diag = doc
-        .diagnostics()
-        .iter()
-        .find(|diag| diag.range.start > cursor_pos)
-        .or_else(|| doc.diagnostics().first());
-
-    let pos = match diag {
-        Some(diag) => diag.range.start,
-        None => return,
-    };
-
-    goto_pos(editor, pos);
+    goto_next_diag_sev(cx, None)
 }
 
 fn goto_next_diag_error(cx: &mut Context) {
-    use helix_core::diagnostic::Severity;
+    goto_next_diag_sev(cx, Some(helix_core::diagnostic::Severity::Error))
+}
 
+fn goto_next_diag_sev(cx: &mut Context, severity: Option<helix_core::diagnostic::Severity>) {
     let editor = &mut cx.editor;
     let (view, doc) = current!(editor);
 
@@ -2528,12 +2511,20 @@ fn goto_next_diag_error(cx: &mut Context) {
     let diag = doc
         .diagnostics()
         .iter()
-        .filter(|diag| match diag.severity {
-            Some(Severity::Error) => true,
-            _ => false,
+        .filter(|diag| match (severity, diag.severity) {
+            (None, _) => true,
+            (req_sev @ Some(_), diag_sev) => req_sev == diag_sev,
         })
         .find(|diag| diag.range.start > cursor_pos)
-        .or_else(|| doc.diagnostics().first());
+        .or_else(|| {
+            doc.diagnostics()
+                .iter()
+                .filter(|diag| match (severity, diag.severity) {
+                    (None, _) => true,
+                    (req_sev @ Some(_), diag_sev) => req_sev == diag_sev,
+                })
+                .next()
+        });
 
     let pos = match diag {
         Some(diag) => diag.range.start,
@@ -2544,32 +2535,14 @@ fn goto_next_diag_error(cx: &mut Context) {
 }
 
 fn goto_prev_diag(cx: &mut Context) {
-    let editor = &mut cx.editor;
-    let (view, doc) = current!(editor);
-
-    let cursor_pos = doc
-        .selection(view.id)
-        .primary()
-        .cursor(doc.text().slice(..));
-
-    let diag = doc
-        .diagnostics()
-        .iter()
-        .rev()
-        .find(|diag| diag.range.start < cursor_pos)
-        .or_else(|| doc.diagnostics().last());
-
-    let pos = match diag {
-        Some(diag) => diag.range.start,
-        None => return,
-    };
-
-    goto_pos(editor, pos);
+    goto_prev_diag_sev(cx, None)
 }
 
 fn goto_prev_diag_error(cx: &mut Context) {
-    use helix_core::diagnostic::Severity;
+    goto_prev_diag_sev(cx, Some(helix_core::diagnostic::Severity::Error))
+}
 
+fn goto_prev_diag_sev(cx: &mut Context, severity: Option<helix_core::diagnostic::Severity>) {
     let editor = &mut cx.editor;
     let (view, doc) = current!(editor);
 
@@ -2582,12 +2555,21 @@ fn goto_prev_diag_error(cx: &mut Context) {
         .diagnostics()
         .iter()
         .rev()
-        .filter(|diag| match diag.severity {
-            Some(Severity::Error) => true,
-            _ => false,
+        .filter(|diag| match (severity, diag.severity) {
+            (None, _) => true,
+            (req_sev @ Some(_), diag_sev) => req_sev == diag_sev,
         })
         .find(|diag| diag.range.start < cursor_pos)
-        .or_else(|| doc.diagnostics().last());
+        .or_else(|| {
+            doc.diagnostics()
+                .iter()
+                .rev()
+                .filter(|diag| match (severity, diag.severity) {
+                    (None, _) => true,
+                    (req_sev @ Some(_), diag_sev) => req_sev == diag_sev,
+                })
+                .next()
+        });
 
     let pos = match diag {
         Some(diag) => diag.range.start,
