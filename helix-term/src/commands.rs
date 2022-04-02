@@ -290,7 +290,9 @@ impl MappableCommand {
         goto_first_diag, "Goto first diagnostic",
         goto_last_diag, "Goto last diagnostic",
         goto_next_diag, "Goto next diagnostic",
+        goto_next_diag_error, "Goto next diagnostic error",
         goto_prev_diag, "Goto previous diagnostic",
+        goto_prev_diag_error, "Goto previous diagnostic error",
         goto_line_start, "Goto line start",
         goto_line_end, "Goto line end",
         goto_next_buffer, "Goto next buffer",
@@ -2512,6 +2514,35 @@ fn goto_next_diag(cx: &mut Context) {
     goto_pos(editor, pos);
 }
 
+fn goto_next_diag_error(cx: &mut Context) {
+    use helix_core::diagnostic::Severity;
+
+    let editor = &mut cx.editor;
+    let (view, doc) = current!(editor);
+
+    let cursor_pos = doc
+        .selection(view.id)
+        .primary()
+        .cursor(doc.text().slice(..));
+
+    let diag = doc
+        .diagnostics()
+        .iter()
+        .filter(|diag| match diag.severity {
+            Some(Severity::Error) => true,
+            _ => false,
+        })
+        .find(|diag| diag.range.start > cursor_pos)
+        .or_else(|| doc.diagnostics().first());
+
+    let pos = match diag {
+        Some(diag) => diag.range.start,
+        None => return,
+    };
+
+    goto_pos(editor, pos);
+}
+
 fn goto_prev_diag(cx: &mut Context) {
     let editor = &mut cx.editor;
     let (view, doc) = current!(editor);
@@ -2525,6 +2556,36 @@ fn goto_prev_diag(cx: &mut Context) {
         .diagnostics()
         .iter()
         .rev()
+        .find(|diag| diag.range.start < cursor_pos)
+        .or_else(|| doc.diagnostics().last());
+
+    let pos = match diag {
+        Some(diag) => diag.range.start,
+        None => return,
+    };
+
+    goto_pos(editor, pos);
+}
+
+fn goto_prev_diag_error(cx: &mut Context) {
+    use helix_core::diagnostic::Severity;
+
+    let editor = &mut cx.editor;
+    let (view, doc) = current!(editor);
+
+    let cursor_pos = doc
+        .selection(view.id)
+        .primary()
+        .cursor(doc.text().slice(..));
+
+    let diag = doc
+        .diagnostics()
+        .iter()
+        .rev()
+        .filter(|diag| match diag.severity {
+            Some(Severity::Error) => true,
+            _ => false,
+        })
         .find(|diag| diag.range.start < cursor_pos)
         .or_else(|| doc.diagnostics().last());
 
