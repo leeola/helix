@@ -9,7 +9,9 @@ use tui::text::Spans;
 pub use typed::*;
 
 use helix_core::{
-    comment, coords_at_pos, encoding, find_first_non_whitespace_char, find_root, graphemes,
+    comment, coords_at_pos,
+    diagnostic::Severity,
+    encoding, find_first_non_whitespace_char, find_root, graphemes,
     history::UndoKind,
     increment::date_time::DateTimeIncrementor,
     increment::{number::NumberIncrementor, Increment},
@@ -308,7 +310,9 @@ impl MappableCommand {
         goto_first_diag, "Goto first diagnostic",
         goto_last_diag, "Goto last diagnostic",
         goto_next_diag, "Goto next diagnostic",
+        goto_next_diag_error, "Goto next diagnostic error",
         goto_prev_diag, "Goto previous diagnostic",
+        goto_prev_diag_error, "Goto previous diagnostic error",
         goto_next_change, "Goto next change",
         goto_prev_change, "Goto previous change",
         goto_first_change, "Goto first change",
@@ -2871,6 +2875,12 @@ fn goto_last_diag(cx: &mut Context) {
 }
 
 fn goto_next_diag(cx: &mut Context) {
+    goto_next_diag_severity(cx, None)
+}
+fn goto_next_diag_error(cx: &mut Context) {
+    goto_next_diag_severity(cx, Some(Severity::Error))
+}
+fn goto_next_diag_severity(cx: &mut Context, severity: Option<Severity>) {
     let editor = &mut cx.editor;
     let (view, doc) = current!(editor);
 
@@ -2882,8 +2892,20 @@ fn goto_next_diag(cx: &mut Context) {
     let diag = doc
         .diagnostics()
         .iter()
+        .filter(|diag| match (severity, diag.severity) {
+            (None, _) => true,
+            (req_sev @ Some(_), diag_sev) => req_sev == diag_sev,
+        })
         .find(|diag| diag.range.start > cursor_pos)
-        .or_else(|| doc.diagnostics().first());
+        .or_else(|| {
+            doc.diagnostics()
+                .iter()
+                .filter(|diag| match (severity, diag.severity) {
+                    (None, _) => true,
+                    (req_sev @ Some(_), diag_sev) => req_sev == diag_sev,
+                })
+                .next()
+        });
 
     let pos = match diag {
         Some(diag) => diag.range.start,
@@ -2894,6 +2916,12 @@ fn goto_next_diag(cx: &mut Context) {
 }
 
 fn goto_prev_diag(cx: &mut Context) {
+    goto_prev_diag_severity(cx, None)
+}
+fn goto_prev_diag_error(cx: &mut Context) {
+    goto_prev_diag_severity(cx, Some(Severity::Error))
+}
+fn goto_prev_diag_severity(cx: &mut Context, severity: Option<Severity>) {
     let editor = &mut cx.editor;
     let (view, doc) = current!(editor);
 
@@ -2905,9 +2933,22 @@ fn goto_prev_diag(cx: &mut Context) {
     let diag = doc
         .diagnostics()
         .iter()
+        .filter(|diag| match (severity, diag.severity) {
+            (None, _) => true,
+            (req_sev @ Some(_), diag_sev) => req_sev == diag_sev,
+        })
         .rev()
         .find(|diag| diag.range.start < cursor_pos)
-        .or_else(|| doc.diagnostics().last());
+        .or_else(|| {
+            doc.diagnostics()
+                .iter()
+                .rev()
+                .filter(|diag| match (severity, diag.severity) {
+                    (None, _) => true,
+                    (req_sev @ Some(_), diag_sev) => req_sev == diag_sev,
+                })
+                .next()
+        });
 
     let pos = match diag {
         Some(diag) => diag.range.start,
